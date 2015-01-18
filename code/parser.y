@@ -47,12 +47,12 @@ int inloop = 0;
 %token <floatVal>SCIENTIFIC
 %token <lexeme>STR_CONST
 
-%type<ptype> scalar_type dim
-%type<par> array_decl parameter_list
+%type<ptype> scalar_type
+%type<par> parameter_list
 %type<constVal> literal_const
 %type<constNode> const_list 
-%type<exprs> variable_reference logical_expression logical_term logical_factor relation_expression arithmetic_expression term factor logical_expression_list literal_list initial_array
-%type<intVal> relation_operator add_op mul_op dimension
+%type<exprs> variable_reference logical_expression logical_term logical_factor relation_expression arithmetic_expression term factor logical_expression_list literal_list
+%type<intVal> relation_operator add_op mul_op
 %type<varDeclNode> identifier_list
 
 
@@ -204,17 +204,6 @@ parameter_list : parameter_list COMMA scalar_type ID
 				param_sem_addParam( $1, ptr );
 				$$ = $1;
 			   }
-			   | parameter_list COMMA scalar_type array_decl
-			   {
-				$4->pType->type= $3->type;
-				param_sem_addParam( $1, $4 );
-				$$ = $1;
-			   }
-			   | scalar_type array_decl 
-			   { 
-				$2->pType->type = $1->type;  
-				$$ = $2;
-			   }
 			   | scalar_type ID { $$ = createParam( createIdList( $2 ), $1 ); }
 			   ;
 
@@ -255,34 +244,6 @@ identifier_list : identifier_list COMMA ID
 					$$ = $1;
 					
 				}
-                | identifier_list COMMA array_decl ASSIGN_OP initial_array
-				{
-					struct varDeclParam *ptr;
-					ptr = createVarDeclParam( $3, $5 );
-					ptr->isArray = __TRUE;
-					ptr->isInit = __TRUE;
-					addVarDeclParam( $1, ptr );
-					$$ = $1;	
-				}
-                | identifier_list COMMA array_decl
-				{
-					struct varDeclParam *ptr;
-					ptr = createVarDeclParam( $3, 0 );
-					ptr->isArray = __TRUE;
-					addVarDeclParam( $1, ptr );
-					$$ = $1;
-				}
-                | array_decl ASSIGN_OP initial_array
-				{	
-					$$ = createVarDeclParam( $1 , $3 );
-					$$->isArray = __TRUE;
-					$$->isInit = __TRUE;	
-				}
-                | array_decl 
-				{ 
-					$$ = createVarDeclParam( $1 , 0 ); 
-					$$->isArray = __TRUE;
-				}
                 | ID ASSIGN_OP logical_expression
 				{
 					struct param_sem *ptr;					
@@ -298,9 +259,6 @@ identifier_list : identifier_list COMMA ID
 				}
                 ;
 		 
-initial_array : L_BRACE literal_list R_BRACE { $$ = $2; }
-			  ;
-
 literal_list : literal_list COMMA logical_expression
 				{
 					struct expr_sem *ptr;
@@ -357,34 +315,6 @@ const_list : const_list COMMA ID ASSIGN_OP literal_const
 			}
 		   ;
 
-array_decl : ID dim 
-			{
-				$$ = createParam( createIdList( $1 ), $2 );
-			}
-		   ;
-
-dim : dim ML_BRACE INT_CONST MR_BRACE
-		{
-			if( $3 == 0 ){
-				fprintf( stdout, "########## Error at Line#%d: array size error!! ##########\n", linenum );
-				semError = __TRUE;
-			}
-			else
-				increaseArrayDim( $1, 0, $3 );			
-		}
-	| ML_BRACE INT_CONST MR_BRACE	
-		{
-			if( $2 == 0 ){
-				fprintf( stdout, "########## Error at Line#%d: array size error!! ##########\n", linenum );
-				semError = __TRUE;
-			}			
-			else{		
-				$$ = createPType( VOID_t ); 			
-				increaseArrayDim( $$, 0, $2 );
-			}		
-		}
-	;
-	
 compound_statement : {scope++;}L_BRACE var_const_stmt_list R_BRACE
 					{ 
 						// print contents of current scope
@@ -544,19 +474,8 @@ variable_reference : ID
 					{
 						$$ = createExprSem( $1 );
 					}
-				   | variable_reference dimension
-					{	
-						increaseDim( $1, $2 );
-						$$ = $1;
-					}
 				   ;
 
-dimension : ML_BRACE arithmetic_expression MR_BRACE
-			{
-				$$ = verifyArrayIndex( $2 );
-			}
-		  ;
-		  
 logical_expression : logical_expression OR_OP logical_term
 					{
 						verifyAndOrOp( $1, OR_t, $3 );
