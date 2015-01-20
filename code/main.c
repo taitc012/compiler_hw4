@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "header.h"
 #include "symtab.h"
 
@@ -14,11 +15,11 @@ extern __BOOLEAN semError;
 
 int  main( int argc, char **argv )
 {
-	if( argc == 1 )
+	/*if( argc == 1 )
 	{
 		yyin = stdin;
 	}
-	else if( argc == 2 )
+	else */if( argc == 2 )
 	{
 		FILE *fp = fopen( argv[1], "r" );
 		if( fp == NULL ) {
@@ -26,6 +27,23 @@ int  main( int argc, char **argv )
 				exit(-1);
 		}
 		yyin = fp;
+        
+        //handle output .j filename and open the file
+        char tmp[256],*pch,*pch2;
+        strcpy(tmp,argv[1]);
+        pch = pch2 = strtok(tmp,"/");
+        while(pch2!=NULL){
+            pch  = pch2;
+            pch2 = strtok(NULL,"/");
+        }
+        pch2 = strtok(pch,".");
+        strcpy(filename,pch2);
+        printf("%s\n",filename);
+        output = fopen(filename,"w"); 
+
+        //initial .j file
+        fprintf(output,".class public %s\n",filename);
+        fprintf(output,".super java/lang/Object\n\n");
 	}
 	else
 	{

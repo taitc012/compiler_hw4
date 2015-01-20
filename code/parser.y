@@ -95,8 +95,29 @@ funct_def : scalar_type ID L_PAREN R_PAREN
 				else{
 					insertFuncIntoSymTable( symbolTable, $2, 0, $1, scope, __TRUE );
 				}
+
+                if(strcmp($2,"main")!=0)
+                    fprintf(output,".method public static %s()",$2); //TODO func name
+                else //main func
+                    fprintf(output,".method public static main([Ljava/lang/String;)");
+                switch( $1->type ) { 
+                    case  INTEGER_t: 
+                        fprintf(output,"I");
+                        break;
+                    case BOOLEAN_t:
+                        fprintf(output,"Z");
+                        break;
+                    case FLOAT_t:
+                        fprintf(output,"F");
+                        break;
+                    case DOUBLE_t:
+                        fprintf(output,"D");
+                }
+                fprintf(output,"\n");
+                fprintf(output,".limit stack 30\n");
+                fprintf(output,".limit locals 30\n");
 			}
-			compound_statement { funcReturn = 0; }	
+			compound_statement { funcReturn = 0; fprintf(output,".end method\n\n"); }	
 		  | scalar_type ID L_PAREN parameter_list R_PAREN  
 			{				
 				funcReturn = $1;
@@ -121,8 +142,43 @@ funct_def : scalar_type ID L_PAREN R_PAREN
 						insertFuncIntoSymTable( symbolTable, $2, $4, $1, scope, __TRUE );
 					}
 				}
+                //generate IR func decl
+                fprintf(output,".method public static %s(",$2); //TODO func name
+        		struct param_sem *parPtr;		
+                for( parPtr=$4 ; parPtr!=0 ; parPtr=(parPtr->next) ) {			
+                    switch( parPtr->pType->type ) { 
+                        case  INTEGER_t: 
+                            fprintf(output,"I");
+                            break;
+                        case BOOLEAN_t:
+                            fprintf(output,"Z");
+                            break;
+                        case FLOAT_t:
+                            fprintf(output,"F");
+                            break;
+                        case DOUBLE_t:
+                            fprintf(output,"D");
+                    }		
+                }
+                fprintf(output,")");
+                switch( $1->type ) { 
+                    case  INTEGER_t: 
+                        fprintf(output,"I");
+                        break;
+                    case BOOLEAN_t:
+                        fprintf(output,"Z");
+                        break;
+                    case FLOAT_t:
+                        fprintf(output,"F");
+                        break;
+                    case DOUBLE_t:
+                        fprintf(output,"D");
+                }
+                fprintf(output,"\n");
+                fprintf(output,".limit stack 30\n");
+                fprintf(output,".limit locals 30\n");
 			} 	
-			compound_statement { funcReturn = 0; }
+			compound_statement { funcReturn = 0; fprintf(output,".end method\n\n"); }
 		  | VOID ID L_PAREN R_PAREN 
 			{
 				funcReturn = createPType(VOID_t); 
@@ -135,8 +191,15 @@ funct_def : scalar_type ID L_PAREN R_PAREN
 				else{
 					insertFuncIntoSymTable( symbolTable, $2, 0, createPType( VOID_t ), scope, __TRUE );	
 				}
+
+                if(strcmp($2,"main")!=0)
+                    fprintf(output,".method public static %s()V\n",$2); //TODO func name
+                else //main func
+                    fprintf(output,".method public static main([Ljava/lang/String;)V\n");
+                fprintf(output,".limit stack 30\n");
+                fprintf(output,".limit locals 30\n");
 			}
-			compound_statement { funcReturn = 0; }	
+			compound_statement { funcReturn = 0; fprintf(output,".end method\n\n"); }	
 		  | VOID ID L_PAREN parameter_list R_PAREN
 			{									
 				funcReturn = createPType(VOID_t);
@@ -161,8 +224,32 @@ funct_def : scalar_type ID L_PAREN R_PAREN
 						insertFuncIntoSymTable( symbolTable, $2, $4, createPType( VOID_t ), scope, __TRUE );
 					}
 				}
+
+                //generate IR func decl
+                fprintf(output,".method public static %s(",$2); //TODO func name
+        		struct param_sem *parPtr;		
+                for( parPtr=$4 ; parPtr!=0 ; parPtr=(parPtr->next) ) {			
+                    switch( parPtr->pType->type ) { 
+                        case  INTEGER_t: 
+                            fprintf(output,"I");
+                            break;
+                        case BOOLEAN_t:
+                            fprintf(output,"Z");
+                            break;
+                        case FLOAT_t:
+                            fprintf(output,"F");
+                            break;
+                        case DOUBLE_t:
+                            fprintf(output,"D");
+                    }		
+                }
+                fprintf(output,")V\n");
+                fprintf(output,".limit stack 30\n");
+                fprintf(output,".limit locals 30\n");
+                
+
 			} 
-			compound_statement { funcReturn = 0; }		  
+			compound_statement { funcReturn = 0; fprintf(output,".end method\n\n"); }		  
 		  ;
 
 funct_decl : scalar_type ID L_PAREN R_PAREN SEMICOLON

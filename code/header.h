@@ -1,7 +1,15 @@
 #ifndef _HEADER_H_
 #define _HEADER_H_
-
+#include <stdio.h>
 #define HASHBUNCH 23
+
+////////////////////////////
+FILE *output;
+char filename[256];
+
+
+////////////////////////////
+
 
 typedef enum { __FALSE, __TRUE } __BOOLEAN;
 typedef enum { VOID_t, INTEGER_t, BOOLEAN_t, STRING_t, FLOAT_t, DOUBLE_t,  ARRAY_t, FUNCTION_t, \
