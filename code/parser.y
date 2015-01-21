@@ -117,6 +117,16 @@ funct_def : scalar_type ID L_PAREN R_PAREN
                 }
                 else{ //main func
                     is_main = 1;
+                    //print global initial func
+                    if(strlen(global_init_buf)>0){
+                        fprintf(output,".method static public <clinit>()V\n",filename);
+                        fprintf(output,".limit stack 20\n",filename);
+                        fprintf(output,".limit locals 20\n",filename);
+                        fprintf(output,"%s",global_init_buf);
+                        fprintf(output,"\treturn\n");
+                        fprintf(output,".end method\n\n");
+                    }
+
                     fprintf(output,".method public static main([Ljava/lang/String;)V\n");
                     fprintf(output,".limit stack 30\n");
                     fprintf(output,".limit locals 30\n");
@@ -207,8 +217,19 @@ funct_def : scalar_type ID L_PAREN R_PAREN
 
                 if(strcmp($2,"main")!=0)
                     fprintf(output,".method public static %s()V\n",$2); //TODO func name
-                else //main func
+                else{ //main func
+                    //print global initial func
+                    if(strlen(global_init_buf)>0){
+                        fprintf(output,".method static public <clinit>()V\n",filename);
+                        fprintf(output,".limit stack 20\n",filename);
+                        fprintf(output,".limit locals 20\n",filename);
+                        fprintf(output,"%s",global_init_buf);
+                        fprintf(output,"\treturn\n");
+                        fprintf(output,".end method\n\n");
+                    }
+
                     fprintf(output,".method public static main([Ljava/lang/String;)V\n");
+                }
                 fprintf(output,".limit stack 30\n");
                 fprintf(output,".limit locals 30\n");
                 if(strcmp($2,"main")==0){
@@ -217,7 +238,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN
                     fprintf(output,"\tgetstatic java/lang/System/in Ljava/io/InputStream;\n");
                     fprintf(output,"\tinvokespecial java/util/Scanner/<init>(Ljava/io/InputStream;)V\n");
                     fprintf(output,"\tputstatic %s/_sc Ljava/util/Scanner;\n\n",filename);
-                    next_num = 0;
+                    next_num = 1;
                 }
 			}
 			compound_statement { funcReturn = 0; fprintf(output,"\treturn\n.end method\n\n"); next_num = 0; }	
@@ -366,8 +387,12 @@ var_decl : scalar_type identifier_list SEMICOLON
 						}
 					}
 				}
-                for(i=p-1;i>=0;--i)
-                    fprintf(output,"%s",tmp_output[i]);
+                for(i=p-1;i>=0;--i){
+                    if(scope>0)
+                        fprintf(output,"%s",tmp_output[i]);
+                    else
+                        strcat(global_init_buf,tmp_output[i]);
+                }
 			}
 			;
 
@@ -1084,71 +1109,107 @@ literal_const : INT_CONST
 					int tmp = $1;
 					$$ = createConstAttr( INTEGER_t, &tmp );
                     printf("const : %d\n",$1);
-                    if(scope>0)     //fprintf(output,"\t");
+                    if(scope > 0)
                         fprintf(output,"\tldc %d\n",$1);
+                    else{
+                        sprintf(init_tmp,"\tldc %d\n",$1);
+                        strcat(global_init_buf,init_tmp);
+                    }
 				}
 			  | SUB_OP INT_CONST
 				{
 					int tmp = -$2;
 					$$ = createConstAttr( INTEGER_t, &tmp );
                     printf("const : %d\n",-$2);
-                    if(scope>0)     //fprintf(output,"\t");
+                    if(scope > 0)
                         fprintf(output,"\tldc %d\n",-$2);
+                    else{
+                        sprintf(init_tmp,"\tldc %d\n",-$2);
+                        strcat(global_init_buf,init_tmp);
+                    }
 				}
 			  | FLOAT_CONST
 				{
 					float tmp = $1;
 					$$ = createConstAttr( FLOAT_t, &tmp );
                     printf("const : %f\n",$1);
-                    if(scope>0)     //fprintf(output,"\t");
+                    if(scope > 0)
                         fprintf(output,"\tldc %f\n",$1);
+                    else{
+                        sprintf(init_tmp,"\tldc %f\n",$1);
+                        strcat(global_init_buf,init_tmp);
+                    }
 				}
 			  | SUB_OP FLOAT_CONST
 			    {
 					float tmp = -$2;
 					$$ = createConstAttr( FLOAT_t, &tmp );
                     printf("const : %f\n",-$2);
-                    if(scope>0)     //fprintf(output,"\t");
+                    if(scope > 0)
                         fprintf(output,"\tldc %f\n",-$2);
+                    else{
+                        sprintf(init_tmp,"\tldc %f\n",-$2);
+                        strcat(global_init_buf,init_tmp);
+                    }
 				}
 			  | SCIENTIFIC
 				{
 					double tmp = $1;
 					$$ = createConstAttr( DOUBLE_t, &tmp );
                     printf("const : %f\n",$1);
-                    if(scope>0)     //fprintf(output,"\t");
+                    if(scope > 0)
                         fprintf(output,"\tldc %f\n",$1);
+                    else{
+                        sprintf(init_tmp,"\tldc %f\n",$1);
+                        strcat(global_init_buf,init_tmp);
+                    }
 				}
 			  | SUB_OP SCIENTIFIC
 				{
 					double tmp = -$2;
 					$$ = createConstAttr( DOUBLE_t, &tmp );
                     printf("const : %f\n",-$2);
-                    if(scope>0)     //fprintf(output,"\t");
+                    if(scope > 0)
                         fprintf(output,"\tldc %f\n",-$2);
+                    else{
+                        sprintf(init_tmp,"\tldc %f\n",-$2);
+                        strcat(global_init_buf,init_tmp);
+                    }
 				}
 			  | STR_CONST
 				{
 					$$ = createConstAttr( STRING_t, $1 );
                     printf("const : %s\n",$1);
-                    if(scope>0)     //fprintf(output,"\t");
+                    if(scope > 0)
                         fprintf(output,"\tldc \"%s\"\n",$1);
+                    else{
+                        sprintf(init_tmp,"\tldc \"%s\"\n",$1);
+                        strcat(global_init_buf,init_tmp);
+                    }
 				}
 			  | TRUE
 				{
 					SEMTYPE tmp = __TRUE;
 					$$ = createConstAttr( BOOLEAN_t, &tmp );
                     printf("const : true\n");
-                    if(scope>0)     //fprintf(output,"\t");
+                    if(scope > 0)
                         fprintf(output,"\ticonst_1\n");
+                    else{
+                        sprintf(init_tmp,"\ticonst_1\n");
+                        strcat(global_init_buf,init_tmp);
+                    }
 				}
 			  | FALSE
 				{
 					SEMTYPE tmp = __FALSE;
 					$$ = createConstAttr( BOOLEAN_t, &tmp );
                     printf("const : false\n");
-                    if(scope>0)     //fprintf(output,"\t");
+                    if(scope > 0)
                         fprintf(output,"\ticonst_0\n");
+                    else{
+                        sprintf(init_tmp,"\ticonst_0\n");
+                        strcat(global_init_buf,init_tmp);
+                    }
 				}
 			  ;
 %%

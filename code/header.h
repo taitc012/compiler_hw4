@@ -9,6 +9,7 @@ char filename[256];
 int next_num;
 int is_main;
 int lable[50];
+char global_init_buf[2048],init_tmp[80];
 
 
 ////////////////////////////

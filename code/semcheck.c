@@ -573,6 +573,22 @@ void verifyAssignmentTypeMatch( struct expr_sem *LHS, struct expr_sem *RHS )
 				misMatch = __TRUE;
 			}
 		}
+        //generate type coercion IR
+        printf("check type\n");
+        printType(LHS->pType,0);
+        printType(RHS->pType,0);
+        if(LHS->pType->type==DOUBLE_t){				
+            //generate type coercion IR
+            if(RHS->pType->type==INTEGER_t)
+                fprintf(output,"\ti2d\n");
+            else if(RHS->pType->type==FLOAT_t)
+                fprintf(output,"\tf2d\n");
+        }
+        else if(LHS->pType->type==FLOAT_t){
+            //generate type coercion IR
+            if(RHS->pType->type==INTEGER_t)
+                fprintf(output,"\ti2f\n");
+        }
 	}
 
 	if( misMatch == __TRUE ) {
@@ -623,6 +639,25 @@ __BOOLEAN verifyVarInitValue( struct PType *scalar, struct varDeclParam *var, st
 				result = __FALSE;
 				fprintf( stdout, "########## Error at Line#%d: initial value type(array type) error ##########\n", linenum ); semError = __TRUE;
 			}
+
+            //generate type coercion IR
+            if(result==__TRUE){
+                printf("~check type\n");
+                printType(scalar,0);
+                printType(var->expr->pType,0);
+                if(scalar->type==DOUBLE_t){				
+                    //generate type coercion IR
+                    if(var->expr->pType->type==INTEGER_t)
+                        fprintf(output,"\ti2d\n");
+                    else if(var->expr->pType->type==FLOAT_t)
+                        fprintf(output,"\tf2d\n");
+                }
+                else if(scalar->type==FLOAT_t){
+                    //generate type coercion IR
+                    if(var->expr->pType->type==INTEGER_t)
+                        fprintf(output,"\ti2f\n");
+                }
+            }
 		}
 		
 	}

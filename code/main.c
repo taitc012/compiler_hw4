@@ -57,7 +57,8 @@ int  main( int argc, char **argv )
         int i;
         for(i=0;i<50;++i)
             lable[i] = 1;
-
+        //initial global init buf
+        memset(global_init_buf,0,sizeof(global_init_buf));
 	}
 	else
 	{
