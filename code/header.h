@@ -6,6 +6,8 @@
 ////////////////////////////
 FILE *output;
 char filename[256];
+int next_num;
+int is_main;
 
 
 ////////////////////////////
@@ -116,6 +118,7 @@ struct SymNode {
 	SEMTYPE category;		
 	struct PType *type;
 	union SymAttr *attribute;
+    int addr;
 	
 	struct SymNode *next;
 	struct SymNode *prev;

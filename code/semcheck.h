@@ -22,7 +22,7 @@ void verifyArrayDim( struct PType *pType, int lo, int hi );
 void verifyArrayType( struct idNode_sem *ids, struct PType *pType );
 __BOOLEAN verifyRedeclaration( struct SymTable *table, const char *str, int scope );
 SEMTYPE verifyArrayIndex( struct expr_sem *expr );
-__BOOLEAN verifyExistence( struct SymTable *table, struct expr_sem *expr, int scope, __BOOLEAN isAssignmentLHS );
+__BOOLEAN verifyExistence(struct SymNode **retnode, struct SymTable *table, struct expr_sem *expr, int scope, __BOOLEAN isAssignmentLHS );
 void verifyAssignmentTypeMatch( struct expr_sem *LHS, struct expr_sem *RHS );
 void verifyModOp( struct expr_sem *op1, struct expr_sem *op2 ); 
 void verifyArithmeticOp( struct expr_sem *op1, OPERATOR operator, struct expr_sem *op2 ); 

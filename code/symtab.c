@@ -42,6 +42,28 @@ struct SymNode* createVarNode( const char *name, int scope, struct PType *type )
 	newNode->category = VARIABLE_t;
 	/* without attribute */
 	newNode->attribute = 0;
+    if(scope>0){
+        fprintf(output,"\t;decl var %s : %d\n",name,next_num);
+        newNode->addr = next_num++;
+    }
+    else{  //global value
+        newNode->addr = 0;
+        fprintf(output,".field public static %s ",name);
+        switch( type->type ) { 
+            case  INTEGER_t: 
+                fprintf(output,"I");
+                break;
+            case BOOLEAN_t:
+                fprintf(output,"Z");
+                break;
+            case FLOAT_t:
+                fprintf(output,"F");
+                break;
+            case DOUBLE_t:
+                fprintf(output,"D");
+        }
+        fprintf(output,"\n");
+    }
 
 	newNode->next = 0;
 	newNode->prev = 0;
@@ -63,6 +85,8 @@ struct SymNode* createParamNode( const char *name, int scope, struct PType *type
 	newNode->category = PARAMETER_t;
 	/* without attribute */
 	newNode->attribute = 0;
+    fprintf(output,";decl para %s : %d\n",name,next_num);
+    newNode->addr = next_num++;
 
 	newNode->next = 0;
 	newNode->prev = 0;
@@ -85,6 +109,7 @@ struct SymNode * createConstNode( const char *name, int scope, struct PType *pTy
 	//* setup attribute /
 	newNode->attribute = (union SymAttr*)malloc(sizeof(union SymAttr));
 	newNode->attribute->constVal = constAttr;
+    newNode->addr = -1;
 
 	newNode->next = 0;
 	newNode->prev = 0;
@@ -107,6 +132,7 @@ struct SymNode *createFuncNode( const char *name, int scope, struct PType *pType
 	//* setup attribute /
 	newNode->attribute = (union SymAttr*)malloc(sizeof(union SymAttr));
 	newNode->attribute->formalParam = params;
+    newNode->addr = -2;
 
 	newNode->next = 0;
 	newNode->prev = 0;

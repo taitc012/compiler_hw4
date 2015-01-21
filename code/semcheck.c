@@ -8,6 +8,52 @@
 extern int linenum;
 extern __BOOLEAN semError; 
 
+void handle_int_arithmetic( OPERATOR op ){
+    switch( op ) {
+         case ADD_t:
+            fprintf(output,"\tiadd\n"); 
+            break;
+         case SUB_t:
+            fprintf(output,"\tisub\n"); 
+            break;
+         case MUL_t:
+            fprintf(output,"\timul\n"); 
+            break;
+         case DIV_t:
+            fprintf(output,"\tidiv\n"); 
+    }
+}
+void handle_double_arithmetic( OPERATOR op ){
+    switch( op ) {
+         case ADD_t:
+            fprintf(output,"\tdadd\n"); 
+            break;
+         case SUB_t:
+            fprintf(output,"\tdsub\n"); 
+            break;
+         case MUL_t:
+            fprintf(output,"\tdmul\n"); 
+            break;
+         case DIV_t:
+            fprintf(output,"\tddiv\n"); 
+    }
+}
+void handle_float_arithmetic( OPERATOR op ){
+    switch( op ) {
+         case ADD_t:
+            fprintf(output,"\tfadd\n"); 
+            break;
+         case SUB_t:
+            fprintf(output,"\tfsub\n"); 
+            break;
+         case MUL_t:
+            fprintf(output,"\tfmul\n"); 
+            break;
+         case DIV_t:
+            fprintf(output,"\tfdiv\n"); 
+    }
+}
+
 void printOperator( OPERATOR op )
 {
 	switch( op ) {
@@ -355,13 +401,14 @@ __BOOLEAN verifyRedeclaration( struct SymTable *table, const char *str, int scop
 	return result;
 }
 
-__BOOLEAN verifyExistence( struct SymTable *table, struct expr_sem *expr, int scope, __BOOLEAN isAssignmentLHS )
+__BOOLEAN verifyExistence(struct SymNode **retnode, struct SymTable *table, struct expr_sem *expr, int scope, __BOOLEAN isAssignmentLHS )
 {
 	__BOOLEAN result = __TRUE;
 	struct SymNode *node = 0;
 	
 	node = lookupSymbol( table, expr->varRef->id, scope, __FALSE );	// if not found, check normal symbol
-	
+	*retnode = node;
+
 	if( node == 0 ) {	// symbol not found
 		fprintf( stdout, "########## Error at Line#%d: '%s' is not declared ##########\n", linenum, expr->varRef->id ); semError = __TRUE;
 		expr->pType = createPType( ERROR_t );
@@ -433,6 +480,15 @@ void verifyUnaryMinus( struct expr_sem *expr )
 			fprintf( stdout, "########## Error at Line#%d: operand of unary - is not integer/real ##########\n", linenum ); semError = __TRUE;
 			expr->pType->type = ERROR_t;
 		}
+        else{
+            //generate neg IR
+            if((expr->pType->type)==INTEGER_t)
+                fprintf(output,"\tineg\n");
+            else if((expr->pType->type)==FLOAT_t)
+                fprintf(output,"\tfneg\n");
+            else if((expr->pType->type)==DOUBLE_t)
+                fprintf(output,"\tdneg\n");
+        }
 	}
 	// if pass 
 }
@@ -497,7 +553,8 @@ __BOOLEAN verifyVarInitValue( struct PType *scalar, struct varDeclParam *var, st
 		}
 		else{//not array decl
 			if( var->expr->isDeref == __FALSE ){				
-				if( verifyExistence( table, var->expr,  scope, __FALSE ) == __FALSE ){ 					
+                struct SymNode *tmp_node;
+				if( verifyExistence(&tmp_node, table, var->expr,  scope, __FALSE ) == __FALSE ){ 					
 					return __FALSE; 
 				}				
 			}
@@ -543,7 +600,8 @@ __BOOLEAN verifyArrayInitVal( struct PType *scalar, struct varDeclParam *var, st
 			break;
 	
   	 	if( tmp->isDeref == __FALSE ){
-			if( verifyExistence( table, tmp,  scope, __FALSE ) == __FALSE ){ 
+            struct SymNode *tmp_node;
+			if( verifyExistence(&tmp_node, table, tmp,  scope, __FALSE ) == __FALSE ){ 
 				return __FALSE; 
 			}	
 		}
@@ -606,6 +664,9 @@ void verifyModOp( struct expr_sem *op1, struct expr_sem *op2 )
 	}
 	else {	// pass verify
 		op1->pType->type = INTEGER_t;
+
+        //generate mod IR
+        fprintf(output,"\tirem\n");
 	}
 }
 
@@ -639,14 +700,44 @@ void verifyArithmeticOp( struct expr_sem *op1, OPERATOR operator, struct expr_se
 			(op2->pType->type==INTEGER_t || op2->pType->type==FLOAT_t || op2->pType->type==DOUBLE_t)) ) {	// need to consider type coercion
 			if( op1->pType->type==INTEGER_t && op2->pType->type==INTEGER_t ) {
 				op1->pType->type = INTEGER_t;
+                //generate integer arithmetic IR
+                handle_int_arithmetic(operator);
 			}
 			else {
 				if(op1->pType->type==DOUBLE_t || op2->pType->type==DOUBLE_t){				
 					op1->pType->type = DOUBLE_t;
-
+                    //generate type coercion IR
+                    if(op1->pType->type!=DOUBLE_t){
+                        fprintf(output,"\tdup2_x2\n");
+                        fprintf(output,"\tpop2\n");
+                        if(op1->pType->type==INTEGER_t)
+                            fprintf(output,"\ti2d\n");
+                        else
+                            fprintf(output,"\tf2d\n");
+                        fprintf(output,"\tdup2_x2\n");
+                        fprintf(output,"\tpop2\n");
+                    }else{
+                        if(op2->pType->type==INTEGER_t)
+                            fprintf(output,"\ti2d\n");
+                        else
+                            fprintf(output,"\tf2d\n");
+                    }
+                    handle_double_arithmetic(operator);
 				}
-				else
-					op1->pType->type = FLOAT_t;	
+				else{
+					op1->pType->type = FLOAT_t;
+                    //generate type coercion IR
+                    if(op1->pType->type!=FLOAT_t){
+                        fprintf(output,"\tswap\n");
+                        if(op1->pType->type==INTEGER_t)
+                            fprintf(output,"\ti2f\n");
+                        fprintf(output,"\tswap\n");
+                    }else{
+                        if(op2->pType->type==INTEGER_t)
+                            fprintf(output,"\ti2f\n");
+                    }
+                    handle_float_arithmetic(operator);
+                }
 			}
 		}
 		else {	// fail verify, dump error message

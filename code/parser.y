@@ -96,28 +96,39 @@ funct_def : scalar_type ID L_PAREN R_PAREN
 					insertFuncIntoSymTable( symbolTable, $2, 0, $1, scope, __TRUE );
 				}
 
-                if(strcmp($2,"main")!=0)
+                if(strcmp($2,"main")!=0){
                     fprintf(output,".method public static %s()",$2); //TODO func name
-                else //main func
-                    fprintf(output,".method public static main([Ljava/lang/String;)");
-                switch( $1->type ) { 
-                    case  INTEGER_t: 
-                        fprintf(output,"I");
-                        break;
-                    case BOOLEAN_t:
-                        fprintf(output,"Z");
-                        break;
-                    case FLOAT_t:
-                        fprintf(output,"F");
-                        break;
-                    case DOUBLE_t:
-                        fprintf(output,"D");
+                    switch( $1->type ) { 
+                        case  INTEGER_t: 
+                            fprintf(output,"I");
+                            break;
+                        case BOOLEAN_t:
+                            fprintf(output,"Z");
+                            break;
+                        case FLOAT_t:
+                            fprintf(output,"F");
+                            break;
+                        case DOUBLE_t:
+                            fprintf(output,"D");
+                    }
+                    fprintf(output,"\n");
                 }
-                fprintf(output,"\n");
-                fprintf(output,".limit stack 30\n");
-                fprintf(output,".limit locals 30\n");
+                else{ //main func
+                    is_main = 1;
+                    fprintf(output,".method public static main([Ljava/lang/String;)V\n");
+                    fprintf(output,".limit stack 30\n");
+                    fprintf(output,".limit locals 30\n");
+                    fprintf(output,"\tnew java/util/Scanner\n");
+                    fprintf(output,"\tdup\n");
+                    fprintf(output,"\tgetstatic java/lang/System/in Ljava/io/InputStream;\n");
+                    fprintf(output,"\tinvokespecial java/util/Scanner/<init>(Ljava/io/InputStream;)V\n");
+                    fprintf(output,"\tputstatic %s/_sc Ljava/util/Scanner;\n\n",filename);
+                }
+                
+                //initial next_num
+                next_num = 1;
 			}
-			compound_statement { funcReturn = 0; fprintf(output,".end method\n\n"); }	
+			compound_statement { is_main = 0; funcReturn = 0; fprintf(output,".end method\n\n"); next_num = 1; }	
 		  | scalar_type ID L_PAREN parameter_list R_PAREN  
 			{				
 				funcReturn = $1;
@@ -178,7 +189,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN
                 fprintf(output,".limit stack 30\n");
                 fprintf(output,".limit locals 30\n");
 			} 	
-			compound_statement { funcReturn = 0; fprintf(output,".end method\n\n"); }
+			compound_statement { funcReturn = 0; fprintf(output,".end method\n\n"); next_num = 1; }
 		  | VOID ID L_PAREN R_PAREN 
 			{
 				funcReturn = createPType(VOID_t); 
@@ -198,8 +209,15 @@ funct_def : scalar_type ID L_PAREN R_PAREN
                     fprintf(output,".method public static main([Ljava/lang/String;)V\n");
                 fprintf(output,".limit stack 30\n");
                 fprintf(output,".limit locals 30\n");
+                if(strcmp($2,"main")==0){
+                    fprintf(output,"\tnew java/util/Scanner\n");
+                    fprintf(output,"\tdup\n");
+                    fprintf(output,"\tgetstatic java/lang/System/in Ljava/io/InputStream;\n");
+                    fprintf(output,"\tinvokespecial java/util/Scanner/<init>(Ljava/io/InputStream;)V\n");
+                    fprintf(output,"\tputstatic %s/_sc Ljava/util/Scanner;\n\n",filename);
+                }
 			}
-			compound_statement { funcReturn = 0; fprintf(output,".end method\n\n"); }	
+			compound_statement { funcReturn = 0; fprintf(output,"\treturn\n.end method\n\n"); next_num = 1; }	
 		  | VOID ID L_PAREN parameter_list R_PAREN
 			{									
 				funcReturn = createPType(VOID_t);
@@ -249,7 +267,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN
                 
 
 			} 
-			compound_statement { funcReturn = 0; fprintf(output,".end method\n\n"); }		  
+			compound_statement { funcReturn = 0; fprintf(output,"\treturn\n.end method\n\n"); next_num = 1; }		  
 		  ;
 
 funct_decl : scalar_type ID L_PAREN R_PAREN SEMICOLON
@@ -298,15 +316,55 @@ var_decl : scalar_type identifier_list SEMICOLON
 			{
 				struct varDeclParam *ptr;
 				struct SymNode *newNode;
+                char tmp_output[80][80],tmp_cat[80];
+                int p=0,i;
 				for( ptr=$2 ; ptr!=0 ; ptr=(ptr->next) ) {						
 					if( verifyRedeclaration( symbolTable, ptr->para->idlist->value, scope ) == __FALSE ) { }
 					else {
 						if( verifyVarInitValue( $1, ptr, symbolTable, scope ) ==  __TRUE ){	
 							newNode = createVarNode( ptr->para->idlist->value, scope, ptr->para->pType );
 							insertTab( symbolTable, newNode );											
+                            //var initial
+                            if(ptr->isInit==__TRUE){
+                                if(scope > 0){
+                                    switch(ptr->para->pType->type){
+                                        case  INTEGER_t: 
+                                            sprintf(tmp_output[p++],"\tistore %d\n",next_num-1);
+                                            break;
+                                        case BOOLEAN_t:
+                                            sprintf(tmp_output[p++],"\tistore %d\n",next_num-1);
+                                            break;
+                                        case FLOAT_t:
+                                            sprintf(tmp_output[p++],"\tfstore %d\n",next_num-1);
+                                            break;
+                                        case DOUBLE_t:
+                                            sprintf(tmp_output[p++],"\tdstore %d\n",next_num-1);
+                                    }
+                                }
+                                else{   //global value
+                                    sprintf(tmp_output[p],"\tputstatic %s/%s ",filename,ptr->para->idlist->value);
+                                    switch(ptr->para->pType->type){
+                                        case  INTEGER_t: 
+                                            sprintf(tmp_cat,"I\n");
+                                            break;
+                                        case BOOLEAN_t:
+                                            sprintf(tmp_cat,"I\n");
+                                            break;
+                                        case FLOAT_t:
+                                            sprintf(tmp_cat,"F\n");
+                                            break;
+                                        case DOUBLE_t:
+                                            sprintf(tmp_cat,"D\n");
+                                    }
+                                    strcat(tmp_output[p],tmp_cat);
+                                    ++p;
+                                }
+                            }
 						}
 					}
 				}
+                for(i=p-1;i>=0;--i)
+                    fprintf(output,"%s",tmp_output[i]);
 			}
 			;
 
@@ -431,21 +489,137 @@ statement : compound_statement
 simple_statement : variable_reference ASSIGN_OP logical_expression SEMICOLON
 					{
 						// check if LHS exists
-						__BOOLEAN flagLHS = verifyExistence( symbolTable, $1, scope, __TRUE );
+                        struct SymNode *node;
+						__BOOLEAN flagLHS = verifyExistence(&node, symbolTable, $1, scope, __TRUE );
 						// id RHS is not dereferenced, check and deference
 						__BOOLEAN flagRHS = __TRUE;
 						if( $3->isDeref == __FALSE ) {
-							flagRHS = verifyExistence( symbolTable, $3, scope, __FALSE );
+                            struct SymNode *node2;
+							flagRHS = verifyExistence(&node2, symbolTable, $3, scope, __FALSE );
 						}
 						// if both LHS and RHS are exists, verify their type
 						if( flagLHS==__TRUE && flagRHS==__TRUE )
 							verifyAssignmentTypeMatch( $1, $3 );
+
+                        //generic assign IR
+                        if( node!=0 ){
+                           if(node->category==VARIABLE_t){
+                                 if(node->scope>0){
+                                    switch(node->type->type){
+                                        case INTEGER_t:
+                                            fprintf(output,"\tistore %d\n",node->addr);
+                                            break;
+                                        case FLOAT_t:
+                                            fprintf(output,"\tfstore %d\n",node->addr);
+                                            break;
+                                        case DOUBLE_t:
+                                            fprintf(output,"\tdstore %d\n",node->addr);
+                                            break;
+                                        case BOOLEAN_t:
+                                            fprintf(output,"\tistore %d\n",node->addr);
+                                            break;
+                                    }
+                                 }else{
+                                    switch(node->type->type){
+                                        case INTEGER_t:
+                                            fprintf(output,"\tputstatic %s/%s I\n",filename,node->name);
+                                            break;
+                                        case FLOAT_t:
+                                            fprintf(output,"\tputstatic %s/%s F\n",filename,node->name);
+                                            break;
+                                        case DOUBLE_t:
+                                            fprintf(output,"\tputstatic %s/%s D\n",filename,node->name);
+                                            break;
+                                        case BOOLEAN_t:
+                                            fprintf(output,"\tputstatic %s/%s Z\n",filename,node->name);
+                                            break;
+                                    }
+                                 }
+                           }
+                       }
 					}
-				 | PRINT logical_expression SEMICOLON { verifyScalarExpr( $2, "print" ); }
+				 | PRINT {fprintf(output,"\tgetstatic java/lang/System/out Ljava/io/PrintStream;\n");} 
+                   logical_expression SEMICOLON 
+                    { 
+                        verifyScalarExpr( $3, "print"); 
+                        fprintf(output,"\tinvokevirtual java/io/PrintStream/print(");
+                        switch($3->pType->type){
+                            case INTEGER_t: 
+                                fprintf(output,"I");
+                                break;
+                            case BOOLEAN_t: 
+                                fprintf(output,"Z");
+                                break;
+                            case STRING_t: 
+                                fprintf(output,"Ljava/lang/String;");
+                                break;
+                            case FLOAT_t: 
+                                fprintf(output,"F");
+                                break;
+                            case DOUBLE_t:   
+                                fprintf(output,"D");
+                        }
+                        fprintf(output,")V\n");
+                    }
 				 | READ variable_reference SEMICOLON 
 					{ 
-						if( verifyExistence( symbolTable, $2, scope, __TRUE ) == __TRUE )						
+                        struct SymNode *node;
+						if( verifyExistence(&node, symbolTable, $2, scope, __TRUE ) == __TRUE )						
 							verifyScalarExpr( $2, "read" ); 
+
+                        //generic read IR
+                        if( node!=0 ){
+                           if(node->category==VARIABLE_t){
+                                 if(node->scope>0){
+                                    switch(node->type->type){
+                                        case INTEGER_t:
+                                            fprintf(output,"\tgetstatic %s/_sc Ljava/util/Scanner;\n",filename);
+                                            fprintf(output,"\tinvokevirtual java/util/Scanner/nextInt()I\n");
+                                            fprintf(output,"\tistore %d\n",node->addr);
+                                            break;
+                                        case FLOAT_t:
+                                            fprintf(output,"\tgetstatic %s/_sc Ljava/util/Scanner;\n",filename);
+                                            fprintf(output,"\tinvokevirtual java/util/Scanner/nextFloat()F\n");
+                                            fprintf(output,"\tfstore %d\n",node->addr);
+                                            break;
+                                        case DOUBLE_t:
+                                            fprintf(output,"\tgetstatic %s/_sc Ljava/util/Scanner;\n",filename);
+                                            fprintf(output,"\tinvokevirtual java/util/Scanner/nextDouble()D\n");
+                                            fprintf(output,"\tdstore %d\n",node->addr);
+                                            break;
+                                        case BOOLEAN_t:
+                                            fprintf(output,"\tgetstatic %s/_sc Ljava/util/Scanner;\n",filename);
+                                            fprintf(output,"\tinvokevirtual java/util/Scanner/nextBoolean()Z\n");
+                                            fprintf(output,"\tistore %d\n",node->addr);
+                                            break;
+                                    }
+                                 }else{
+                                    switch(node->type->type){
+                                        case INTEGER_t:
+                                            fprintf(output,"\tgetstatic %s/_sc Ljava/util/Scanner;\n",filename);
+                                            fprintf(output,"\tinvokevirtual java/util/Scanner/nextInt()I\n");
+                                            fprintf(output,"\tputstatic %s/%s I\n",filename,node->name);
+                                            break;
+                                        case FLOAT_t:
+                                            fprintf(output,"\tgetstatic %s/_sc Ljava/util/Scanner;\n",filename);
+                                            fprintf(output,"\tinvokevirtual java/util/Scanner/nextInt()I\n");
+                                            fprintf(output,"\tputstatic %s/%s I\n",filename,node->name);
+                                            break;
+                                        case DOUBLE_t:
+                                            fprintf(output,"\tgetstatic %s/_sc Ljava/util/Scanner;\n",filename);
+                                            fprintf(output,"\tinvokevirtual java/util/Scanner/nextInt()I\n");
+                                            fprintf(output,"\tputstatic %s/%s I\n",filename,node->name);
+                                            break;
+                                        case BOOLEAN_t:
+                                            fprintf(output,"\tgetstatic %s/_sc Ljava/util/Scanner;\n",filename);
+                                            fprintf(output,"\tinvokevirtual java/util/Scanner/nextInt()I\n");
+                                            fprintf(output,"\tputstatic %s/%s I\n",filename,node->name);
+                                            break;
+                                    }
+                                 }
+                           }
+                       }
+                        
 					}
 				 ;
 
@@ -516,11 +690,12 @@ increment_expression : increment_expression COMMA statement_for
 statement_for 	: variable_reference ASSIGN_OP logical_expression
 					{
 						// check if LHS exists
-						__BOOLEAN flagLHS = verifyExistence( symbolTable, $1, scope, __TRUE );
+                        struct SymNode *node1,*node2;
+						__BOOLEAN flagLHS = verifyExistence(&node1, symbolTable, $1, scope, __TRUE );
 						// id RHS is not dereferenced, check and deference
 						__BOOLEAN flagRHS = __TRUE;
 						if( $3->isDeref == __FALSE ) {
-							flagRHS = verifyExistence( symbolTable, $3, scope, __FALSE );
+							flagRHS = verifyExistence(&node2, symbolTable, $3, scope, __FALSE );
 						}
 						// if both LHS and RHS are exists, verify their type
 						if( flagLHS==__TRUE && flagRHS==__TRUE )
@@ -553,7 +728,24 @@ jump_statement : CONTINUE SEMICOLON
 				}
 			   | RETURN logical_expression SEMICOLON
 				{
-					verifyReturnStatement( $2, funcReturn );
+                    if( is_main ){
+                        fprintf(output,"\treturn\n");
+                    }
+                    else{
+                        verifyReturnStatement( $2, funcReturn );
+                        //generate return IR
+                        switch(funcReturn->type){
+                            case INTEGER_t:
+                            case BOOLEAN_t:
+                                fprintf(output,"\tireturn\n");
+                                break;
+                            case FLOAT_t:
+                                fprintf(output,"\tfreturn\n");
+                                break;
+                            case DOUBLE_t:
+                                fprintf(output,"\tdreturn\n");
+                        }
+                    }
 				}
 			   ;
 
@@ -607,8 +799,12 @@ arithmetic_expression : arithmetic_expression add_op term
 			{
 				verifyArithmeticOp( $1, $2, $3 );
 				$$ = $1;
+                if($2==ADD_t)
+                    printf("+\n");
+                else
+                    printf("-\n");
 			}
-                   | relation_expression { $$ = $1; }
+           | relation_expression { $$ = $1; }
 		   | term { $$ = $1; }
 		   ;
 
@@ -618,6 +814,12 @@ add_op	: ADD_OP { $$ = ADD_t; }
 		   
 term : term mul_op factor
 		{
+            if($2 == DIV_t)
+                printf("/\n");
+            else if($2 == MUL_t)
+                printf("*\n");
+            else
+                printf("%%\n");
 			if( $2 == MOD_t ) {
 				verifyModOp( $1, $3 );
 			}
@@ -636,14 +838,134 @@ mul_op 	: MUL_OP { $$ = MUL_t; }
 		
 factor : variable_reference
 		{
-			verifyExistence( symbolTable, $1, scope, __FALSE );
+            struct SymNode *node;
+			verifyExistence(&node, symbolTable, $1, scope, __FALSE );
 			$$ = $1;
 			$$->beginningOp = NONE_t;
+            if( node!=0 ){
+               if(node->category==VARIABLE_t||node->category==PARAMETER_t){
+                     if(node->scope>0){
+                        switch(node->type->type){
+                            case INTEGER_t:
+                                fprintf(output,"\tiload %d\n",node->addr);
+                                break;
+                            case FLOAT_t:
+                                fprintf(output,"\tfload %d\n",node->addr);
+                                break;
+                            case DOUBLE_t:
+                                fprintf(output,"\tdload %d\n",node->addr);
+                                break;
+                            case BOOLEAN_t:
+                                fprintf(output,"\tiload %d\n",node->addr);
+                                break;
+                        }
+                     }else{
+                        fprintf(output,"getstatic %s/%s ",filename,node->name);
+                        switch(node->type->type){
+                            case INTEGER_t:
+                                fprintf(output,"I\n");
+                                break;
+                            case FLOAT_t:
+                                fprintf(output,"F\n");
+                                break;
+                            case DOUBLE_t:
+                                fprintf(output,"D\n");
+                                break;
+                            case BOOLEAN_t:
+                                fprintf(output,"I\n");
+                                break;
+                        }
+                     }
+               }
+               else if(node->category==CONSTANT_t){
+					switch( node->attribute->constVal->category ) {
+					 case INTEGER_t:
+						fprintf(output,"\tsipush %d\n",node->attribute->constVal->value.integerVal);
+						break;
+					 case FLOAT_t:
+					 	fprintf(output,"\tldc %lf\n",node->attribute->constVal->value.floatVal);
+						break;
+					case DOUBLE_t:
+					 	fprintf(output,"\tldc %lf\n",node->attribute->constVal->value.doubleVal);
+						break;
+					 case BOOLEAN_t:
+					 	if( node->attribute->constVal->value.booleanVal == __TRUE ) 
+							fprintf(output,"\ticonst_1\n");
+						else
+							fprintf(output,"\ticonst_0\n");
+						break;
+					 case STRING_t:
+					 	fprintf(output,"ldc \"%s\"",node->attribute->constVal->value.stringVal);
+						break;
+					}
+               }
+            }
 		}
 	   | SUB_OP variable_reference
 		{
-			if( verifyExistence( symbolTable, $2, scope, __FALSE ) == __TRUE )
-			verifyUnaryMinus( $2 );
+            struct SymNode *node;
+			if( verifyExistence(&node, symbolTable, $2, scope, __FALSE ) == __TRUE ){
+                if( node!=0 ){
+                   if(node->category==VARIABLE_t||node->category==PARAMETER_t){
+                         if(node->scope>0){
+                            switch(node->type->type){
+                                case INTEGER_t:
+                                    fprintf(output,"\tiload %d\n",node->addr);
+                                    break;
+                                case FLOAT_t:
+                                    fprintf(output,"\tfload %d\n",node->addr);
+                                    break;
+                                case DOUBLE_t:
+                                    fprintf(output,"\tdload %d\n",node->addr);
+                                    break;
+                                case BOOLEAN_t:
+                                    fprintf(output,"\tiload %d\n",node->addr);
+                                    break;
+                            }
+                         }else{
+                            fprintf(output,"getstatic %s/%s ",filename,node->name);
+                            switch(node->type->type){
+                                case INTEGER_t:
+                                    fprintf(output,"I\n");
+                                    break;
+                                case FLOAT_t:
+                                    fprintf(output,"F\n");
+                                    break;
+                                case DOUBLE_t:
+                                    fprintf(output,"D\n");
+                                    break;
+                                case BOOLEAN_t:
+                                    fprintf(output,"I\n");
+                                    break;
+                            }
+                         }
+                   }
+                   else if(node->category==CONSTANT_t){
+                        switch( node->attribute->constVal->category ) {
+                         case INTEGER_t:
+                            fprintf(output,"\tsipush %d\n",node->attribute->constVal->value.integerVal);
+                            break;
+                         case FLOAT_t:
+                            fprintf(output,"\tldc %lf\n",node->attribute->constVal->value.floatVal);
+                            break;
+                        case DOUBLE_t:
+                            fprintf(output,"\tldc %lf\n",node->attribute->constVal->value.doubleVal);
+                            break;
+                         case BOOLEAN_t:
+                            if( node->attribute->constVal->value.booleanVal == __TRUE ) 
+                                fprintf(output,"\ticonst_1\n");
+                            else
+                                fprintf(output,"\ticonst_0\n");
+                            break;
+                         case STRING_t:
+                            fprintf(output,"ldc \"%s\"",node->attribute->constVal->value.stringVal);
+                            break;
+                        }
+                   }
+                }
+                
+                verifyUnaryMinus( $2 );
+            }
 			$$ = $2;
 			$$->beginningOp = SUB_t;
 		}		
@@ -718,45 +1040,72 @@ literal_const : INT_CONST
 				{
 					int tmp = $1;
 					$$ = createConstAttr( INTEGER_t, &tmp );
+                    printf("const : %d\n",$1);
+                    if(scope>0)     fprintf(output,"\t");
+                    fprintf(output,"sipush %d\n",$1);
 				}
 			  | SUB_OP INT_CONST
 				{
 					int tmp = -$2;
 					$$ = createConstAttr( INTEGER_t, &tmp );
+                    printf("const : %d\n",-$2);
+                    if(scope>0)     fprintf(output,"\t");
+                    fprintf(output,"sipush %d\n",-$2);
 				}
 			  | FLOAT_CONST
 				{
 					float tmp = $1;
 					$$ = createConstAttr( FLOAT_t, &tmp );
+                    printf("const : %f\n",$1);
+                    if(scope>0)     fprintf(output,"\t");
+                    fprintf(output,"ldc %f\n",$1);
 				}
 			  | SUB_OP FLOAT_CONST
 			    {
 					float tmp = -$2;
 					$$ = createConstAttr( FLOAT_t, &tmp );
+                    printf("const : %f\n",-$2);
+                    if(scope>0)     fprintf(output,"\t");
+                    fprintf(output,"ldc %f\n",-$2);
 				}
 			  | SCIENTIFIC
 				{
 					double tmp = $1;
 					$$ = createConstAttr( DOUBLE_t, &tmp );
+                    printf("const : %f\n",$1);
+                    if(scope>0)     fprintf(output,"\t");
+                    fprintf(output,"ldc %f\n",$1);
 				}
 			  | SUB_OP SCIENTIFIC
 				{
 					double tmp = -$2;
 					$$ = createConstAttr( DOUBLE_t, &tmp );
+                    printf("const : %f\n",-$2);
+                    if(scope>0)     fprintf(output,"\t");
+                    fprintf(output,"ldc %f\n",-$2);
 				}
 			  | STR_CONST
 				{
 					$$ = createConstAttr( STRING_t, $1 );
+                    printf("const : %s\n",$1);
+                    if(scope>0)     fprintf(output,"\t");
+                    fprintf(output,"ldc \"%s\"\n",$1);
 				}
 			  | TRUE
 				{
 					SEMTYPE tmp = __TRUE;
 					$$ = createConstAttr( BOOLEAN_t, &tmp );
+                    printf("const : true\n");
+                    if(scope>0)     fprintf(output,"\t");
+                    fprintf(output,"iconst_1\n");
 				}
 			  | FALSE
 				{
 					SEMTYPE tmp = __FALSE;
 					$$ = createConstAttr( BOOLEAN_t, &tmp );
+                    printf("const : false\n");
+                    if(scope>0)     fprintf(output,"\t");
+                    fprintf(output,"iconst_0\n");
 				}
 			  ;
 %%

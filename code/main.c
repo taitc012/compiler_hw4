@@ -39,11 +39,20 @@ int  main( int argc, char **argv )
         pch2 = strtok(pch,".");
         strcpy(filename,pch2);
         printf("%s\n",filename);
-        output = fopen(filename,"w"); 
+
+        strcat(pch2,".j");
+        printf("%s\n",pch2);
+        output = fopen(pch2,"w"); 
 
         //initial .j file
         fprintf(output,".class public %s\n",filename);
-        fprintf(output,".super java/lang/Object\n\n");
+        fprintf(output,".super java/lang/Object\n");
+        fprintf(output,".field public static _sc Ljava/util/Scanner;\n\n");
+        
+        //initial next_num
+        next_num = 1;
+        //initial ismain
+        is_main = 0;
 	}
 	else
 	{
