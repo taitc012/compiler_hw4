@@ -53,5 +53,14 @@ __BOOLEAN verifyArrayInitVal( struct PType *scalar, struct varDeclParam *var, st
 struct varDeclParam *createVarDeclParam( struct param_sem *par, struct expr_sem *exp );
 void addVarDeclParam( struct varDeclParam *lhs, struct varDeclParam *rhs );
 
+void generate_if_true();
+void generate_if_false();
+void generate_if_end();
+void generate_while_false();
+void generate_dowhile();
+void generate_for_begin();
+void generate_for_inc();
+void generate_for_true();
+void generate_for_false();
 #endif
 

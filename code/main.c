@@ -54,7 +54,10 @@ int  main( int argc, char **argv )
         //initial ismain
         is_main = 0;
         //initial lable
-        lable = 1;
+        int i;
+        for(i=0;i<50;++i)
+            lable[i] = 1;
+
 	}
 	else
 	{

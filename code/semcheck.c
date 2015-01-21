@@ -5,6 +5,7 @@
 #include "header.h"
 #include "symtab.h"
 
+extern scope;
 extern int linenum;
 extern __BOOLEAN semError; 
 
@@ -24,30 +25,32 @@ void handle_double_relational( OPERATOR op ){
 void handle_relation( OPERATOR op ){
     switch (op){
         case LT_t: 
-            fprintf(output,"\tiflt L%d_true\n",lable);
+            fprintf(output,"\tiflt L%d_%d_true\n",scope,lable[scope]);
             break;
         case LE_t: 
-            fprintf(output,"\tifle L%d_true\n",lable);
+            fprintf(output,"\tifle L%d_%d_true\n",scope,lable[scope]);
             break;
         case EQ_t: 
-            fprintf(output,"\tifeq L%d_true\n",lable);
+            fprintf(output,"\tifeq L%d_%d_true\n",scope,lable[scope]);
             break;
         case GE_t: 
-            fprintf(output,"\tifge L%d_true\n",lable);
+            fprintf(output,"\tifge L%d_%d_true\n",scope,lable[scope]);
             break;
         case GT_t: 
-            fprintf(output,"\tifgt L%d_true\n",lable);
+            fprintf(output,"\tifgt L%d_%d_true\n",scope,lable[scope]);
             break;
         case NE_t:
-            fprintf(output,"\tifne L%d_true\n",lable);
+            fprintf(output,"\tifne L%d_%d_true\n",scope,lable[scope]);
     }
     fprintf(output,"\ticonst_0  ; false = 0\n");
-    fprintf(output,"\tgoto L%d_end\n",lable);
-    fprintf(output,"L%d_true:\n",lable);
+    fprintf(output,"\tgoto L%d_%d_end\n",scope,lable[scope]);
+    fprintf(output,"L%d_%d_true:\n",scope,lable[scope]);
     fprintf(output,"\ticonst_1  ; true = 1\n");
-    fprintf(output,"L%d_end:\n",lable);
+    fprintf(output,"L%d_%d_end:\n",scope,lable[scope]);
 
-    ++lable;
+    ++lable[scope];
+    //fprintf(output,";label++\n");
+    //fprintf(output,";scope: %d, label: %d\n",scope,lable[scope]);
 }
 
 
@@ -928,7 +931,10 @@ struct expr_sem *verifyFuncInvoke( const char *id, struct expr_sem *exprList, st
 		fprintf( stdout, "########## Error at Line#%d: symbol '%s' is not a function ##########\n", linenum, id ); semError = __TRUE;
 		result->pType = createPType( ERROR_t );
 	}
-	else {			// check parameters...
+	else {			
+        //generic call func IR
+        fprintf(output,"\tinvokestatic %s/%s(",filename,node->name);
+        // check parameters...
 		if( node->attribute->formalParam->paramNum == 0 ) {
 			if( exprList != 0 ) {
 				fprintf( stdout, "########## Error at Line#%d: too many arguments to function %s ##########\n", linenum, node->name ); semError = __TRUE;
@@ -936,7 +942,24 @@ struct expr_sem *verifyFuncInvoke( const char *id, struct expr_sem *exprList, st
 			}
 			else {
 				//result->pType = node->type;	// return type of function declaration
+                //printType(node->type,0);
 				result->pType = createPType(node->type->type);
+                switch(node->type->type){
+                    case VOID_t:
+                        fprintf(output,")V\n");
+                        break;
+                    case INTEGER_t:
+                        fprintf(output,")I\n");
+                        break;
+                    case FLOAT_t:
+                        fprintf(output,")F\n");
+                        break;
+                    case DOUBLE_t:
+                        fprintf(output,")D\n");
+                        break;
+                    case BOOLEAN_t:
+                        fprintf(output,")Z\n");
+                }
 			}
 		}
 		else {
@@ -951,6 +974,20 @@ struct expr_sem *verifyFuncInvoke( const char *id, struct expr_sem *exprList, st
 						&& !((listPtr->value->type==DOUBLE_t)&&(exprPtr->pType->type==INTEGER_t))
 						&& !((listPtr->value->type==DOUBLE_t)&&(exprPtr->pType->type==FLOAT_t)) )
 						mismatch = __TRUE;
+                    else {
+                        if(listPtr->value->type==DOUBLE_t){				
+                            //generate type coercion IR
+                            if(exprPtr->pType->type==INTEGER_t)
+                                fprintf(output,"\ti2d\n");
+                            else if(exprPtr->pType->type==FLOAT_t)
+                                fprintf(output,"\tf2d\n");
+                        }
+                        else if(listPtr->value->type==FLOAT_t){
+                            //generate type coercion IR
+                            if(exprPtr->pType->type==INTEGER_t)
+                                fprintf(output,"\ti2f\n");
+                        }
+                    }
 				}
 				// verify dimension #
 				if( listPtr->value->dimNum != exprPtr->pType->dimNum ) {
@@ -965,6 +1002,20 @@ struct expr_sem *verifyFuncInvoke( const char *id, struct expr_sem *exprList, st
 						}
 					}
 				}
+                switch(listPtr->value->type){
+                    case INTEGER_t:
+                        fprintf(output,"I");
+                        break;
+                    case FLOAT_t:
+                        fprintf(output,"F");
+                        break;
+                    case DOUBLE_t:
+                        fprintf(output,"D");
+                        break;
+                    case BOOLEAN_t:
+                        fprintf(output,"Z");
+                }
+                
 			}
 			if( mismatch == __TRUE ) {
 				fprintf( stdout, "########## Error at Line#%d: parameter type mismatch ##########\n", linenum ); semError = __TRUE;
@@ -981,6 +1032,22 @@ struct expr_sem *verifyFuncInvoke( const char *id, struct expr_sem *exprList, st
 				}
 				else {					
 					result->pType = createPType(node->type->type);
+                    switch(node->type->type){
+                        case VOID_t:
+                            fprintf(output,")V\n");
+                            break;
+                        case INTEGER_t:
+                            fprintf(output,")I\n");
+                            break;
+                        case FLOAT_t:
+                            fprintf(output,")F\n");
+                            break;
+                        case DOUBLE_t:
+                            fprintf(output,")D\n");
+                            break;
+                        case BOOLEAN_t:
+                            fprintf(output,")Z\n");
+                    }
 				}
 			}
 		}
@@ -1285,3 +1352,50 @@ void deleteIdList( struct idNode_sem *idlist )
 	}
 }
 
+void generate_if_true(){
+    fprintf(output,"\tifne L%d_%d_true\n",scope,lable[scope]);
+    fprintf(output,"\tgoto L%d_%d_false\n",scope,lable[scope]);
+    fprintf(output,"L%d_%d_true:\n",scope,lable[scope]);
+}
+void generate_if_false(){
+    fprintf(output,"\tgoto L%d_%d_end\n",scope,lable[scope]);
+    fprintf(output,"L%d_%d_false:\n",scope,lable[scope]);
+}
+void generate_if_end(){
+    fprintf(output,"L%d_%d_end:\n",scope,lable[scope]);
+    ++lable[scope];
+    //fprintf(output,";label++\n");
+    //fprintf(output,";scope: %d, label: %d\n",scope,lable[scope]);
+}
+void generate_while_false(){
+    fprintf(output,"\tgoto L%d_%d_begin\n",scope,lable[scope]-1);
+    fprintf(output,"L%d_%d_false:\n",scope,lable[scope]);
+    ++lable[scope];
+    //fprintf(output,";label++\n");
+    //fprintf(output,";scope: %d, label: %d\n",scope,lable[scope]);
+}
+void generate_dowhile(){
+    fprintf(output,"\tifne L%d_%d_begin\n",scope,lable[scope]-2);
+    ++lable[scope];
+    //fprintf(output,";label++\n");
+    //fprintf(output,";scope: %d, label: %d\n",scope,lable[scope]);
+}
+void generate_for_begin(){
+    fprintf(output,"L%d_%d_begin:\n",scope,lable[scope]);
+    ++lable[scope];
+    //fprintf(output,";label++\n");
+    //fprintf(output,";scope: %d, label: %d\n",scope,lable[scope]);
+}
+void generate_for_inc(){
+    fprintf(output,"\tifne L%d_%d_true\n",scope,lable[scope]-2);
+    fprintf(output,"\tgoto L%d_%d_false\n",scope,lable[scope]-2);
+    fprintf(output,"L%d_%d_inc:\n",scope,lable[scope]-2);
+}
+void generate_for_true(){
+    fprintf(output,"\tgoto L%d_%d_begin\n",scope,lable[scope]-2);
+    fprintf(output,"L%d_%d_true:\n",scope,lable[scope]-2);
+}
+void generate_for_false(){
+    fprintf(output,"\tgoto L%d_%d_inc\n",scope,lable[scope]-2);
+    fprintf(output,"L%d_%d_false:\n",scope,lable[scope]-2);
+}

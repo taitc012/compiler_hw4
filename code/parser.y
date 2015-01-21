@@ -112,6 +112,8 @@ funct_def : scalar_type ID L_PAREN R_PAREN
                             fprintf(output,"D");
                     }
                     fprintf(output,"\n");
+                    fprintf(output,".limit stack 30\n");
+                    fprintf(output,".limit locals 30\n");
                 }
                 else{ //main func
                     is_main = 1;
@@ -128,7 +130,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN
                 //initial next_num
                 next_num = 1;
 			}
-			compound_statement { is_main = 0; funcReturn = 0; fprintf(output,".end method\n\n"); next_num = 1; }	
+			compound_statement { is_main = 0; funcReturn = 0; fprintf(output,".end method\n\n"); next_num = 0; }	
 		  | scalar_type ID L_PAREN parameter_list R_PAREN  
 			{				
 				funcReturn = $1;
@@ -189,7 +191,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN
                 fprintf(output,".limit stack 30\n");
                 fprintf(output,".limit locals 30\n");
 			} 	
-			compound_statement { funcReturn = 0; fprintf(output,".end method\n\n"); next_num = 1; }
+			compound_statement { funcReturn = 0; fprintf(output,".end method\n\n"); next_num = 0; }
 		  | VOID ID L_PAREN R_PAREN 
 			{
 				funcReturn = createPType(VOID_t); 
@@ -215,9 +217,10 @@ funct_def : scalar_type ID L_PAREN R_PAREN
                     fprintf(output,"\tgetstatic java/lang/System/in Ljava/io/InputStream;\n");
                     fprintf(output,"\tinvokespecial java/util/Scanner/<init>(Ljava/io/InputStream;)V\n");
                     fprintf(output,"\tputstatic %s/_sc Ljava/util/Scanner;\n\n",filename);
+                    next_num = 0;
                 }
 			}
-			compound_statement { funcReturn = 0; fprintf(output,"\treturn\n.end method\n\n"); next_num = 1; }	
+			compound_statement { funcReturn = 0; fprintf(output,"\treturn\n.end method\n\n"); next_num = 0; }	
 		  | VOID ID L_PAREN parameter_list R_PAREN
 			{									
 				funcReturn = createPType(VOID_t);
@@ -267,7 +270,7 @@ funct_def : scalar_type ID L_PAREN R_PAREN
                 
 
 			} 
-			compound_statement { funcReturn = 0; fprintf(output,"\treturn\n.end method\n\n"); next_num = 1; }		  
+			compound_statement { funcReturn = 0; fprintf(output,"\treturn\n.end method\n\n"); next_num = 0; }		  
 		  ;
 
 funct_decl : scalar_type ID L_PAREN R_PAREN SEMICOLON
@@ -623,28 +626,32 @@ simple_statement : variable_reference ASSIGN_OP logical_expression SEMICOLON
 					}
 				 ;
 
-conditional_statement : IF L_PAREN conditional_if  R_PAREN compound_statement
-					  | IF L_PAREN conditional_if  R_PAREN compound_statement
-						ELSE compound_statement
+conditional_statement : IF L_PAREN conditional_if R_PAREN compound_statement { generate_if_false(); generate_if_end(); }
+					  | IF L_PAREN conditional_if R_PAREN compound_statement
+						ELSE  { generate_if_false();} compound_statement {generate_if_end(); }
 					  ;
-conditional_if : logical_expression { verifyBooleanExpr( $1, "if" ); };;					  
+conditional_if : logical_expression { verifyBooleanExpr( $1, "if" ); generate_if_true();};;					  
 
 				
-while_statement : WHILE L_PAREN logical_expression { verifyBooleanExpr( $3, "while" ); } R_PAREN { inloop++; }
-					compound_statement { inloop--; }
-				| { inloop++; } DO compound_statement WHILE L_PAREN logical_expression R_PAREN SEMICOLON  
+while_statement : WHILE {fprintf(output,"L%d_%d_begin:\n",scope,lable[scope]);} 
+                    L_PAREN logical_expression { verifyBooleanExpr( $4, "while" ); generate_if_true(); } R_PAREN { inloop++; }
+					compound_statement { inloop--; generate_while_false(); }
+				| { inloop++; fprintf(output,"L%d_%d_begin:\n",scope,lable[scope]); } 
+                    DO compound_statement WHILE L_PAREN logical_expression R_PAREN SEMICOLON  
 					{ 
 						 verifyBooleanExpr( $6, "while" );
 						 inloop--; 
-						
+						 generate_dowhile();
 					}
-				;
+				; 
 
 
 				
-for_statement : FOR L_PAREN initial_expression SEMICOLON control_expression SEMICOLON increment_expression R_PAREN  { inloop++; }
-					compound_statement  { inloop--; }
-			  ;
+for_statement : FOR L_PAREN initial_expression SEMICOLON 
+                {generate_for_begin();} control_expression SEMICOLON 
+                {generate_for_inc();}increment_expression R_PAREN  
+                { inloop++; generate_for_true(); }compound_statement  { inloop--; generate_for_false();}
+			  ; 
 
 initial_expression : initial_expression COMMA statement_for		
 				   | initial_expression COMMA logical_expression
@@ -690,8 +697,8 @@ increment_expression : increment_expression COMMA statement_for
 statement_for 	: variable_reference ASSIGN_OP logical_expression
 					{
 						// check if LHS exists
-                        struct SymNode *node1,*node2;
-						__BOOLEAN flagLHS = verifyExistence(&node1, symbolTable, $1, scope, __TRUE );
+                        struct SymNode *node,*node2;
+						__BOOLEAN flagLHS = verifyExistence(&node, symbolTable, $1, scope, __TRUE );
 						// id RHS is not dereferenced, check and deference
 						__BOOLEAN flagRHS = __TRUE;
 						if( $3->isDeref == __FALSE ) {
@@ -700,6 +707,42 @@ statement_for 	: variable_reference ASSIGN_OP logical_expression
 						// if both LHS and RHS are exists, verify their type
 						if( flagLHS==__TRUE && flagRHS==__TRUE )
 							verifyAssignmentTypeMatch( $1, $3 );
+                        //generic assign IR
+                        if( node!=0 ){
+                           if(node->category==VARIABLE_t){
+                                 if(node->scope>0){
+                                    switch(node->type->type){
+                                        case INTEGER_t:
+                                            fprintf(output,"\tistore %d\n",node->addr);
+                                            break;
+                                        case FLOAT_t:
+                                            fprintf(output,"\tfstore %d\n",node->addr);
+                                            break;
+                                        case DOUBLE_t:
+                                            fprintf(output,"\tdstore %d\n",node->addr);
+                                            break;
+                                        case BOOLEAN_t:
+                                            fprintf(output,"\tistore %d\n",node->addr);
+                                            break;
+                                    }
+                                 }else{
+                                    switch(node->type->type){
+                                        case INTEGER_t:
+                                            fprintf(output,"\tputstatic %s/%s I\n",filename,node->name);
+                                            break;
+                                        case FLOAT_t:
+                                            fprintf(output,"\tputstatic %s/%s F\n",filename,node->name);
+                                            break;
+                                        case DOUBLE_t:
+                                            fprintf(output,"\tputstatic %s/%s D\n",filename,node->name);
+                                            break;
+                                        case BOOLEAN_t:
+                                            fprintf(output,"\tputstatic %s/%s Z\n",filename,node->name);
+                                            break;
+                                    }
+                                 }
+                           }
+                       }
 					}
 					;
 					 
@@ -880,7 +923,7 @@ factor : variable_reference
                else if(node->category==CONSTANT_t){
 					switch( node->attribute->constVal->category ) {
 					 case INTEGER_t:
-						fprintf(output,"\tsipush %d\n",node->attribute->constVal->value.integerVal);
+						fprintf(output,"\tldc %d\n",node->attribute->constVal->value.integerVal);
 						break;
 					 case FLOAT_t:
 					 	fprintf(output,"\tldc %lf\n",node->attribute->constVal->value.floatVal);
@@ -943,7 +986,7 @@ factor : variable_reference
                    else if(node->category==CONSTANT_t){
                         switch( node->attribute->constVal->category ) {
                          case INTEGER_t:
-                            fprintf(output,"\tsipush %d\n",node->attribute->constVal->value.integerVal);
+                            fprintf(output,"\tldc %d\n",node->attribute->constVal->value.integerVal);
                             break;
                          case FLOAT_t:
                             fprintf(output,"\tldc %lf\n",node->attribute->constVal->value.floatVal);
@@ -1041,71 +1084,71 @@ literal_const : INT_CONST
 					int tmp = $1;
 					$$ = createConstAttr( INTEGER_t, &tmp );
                     printf("const : %d\n",$1);
-                    if(scope>0)     fprintf(output,"\t");
-                    fprintf(output,"sipush %d\n",$1);
+                    if(scope>0)     //fprintf(output,"\t");
+                        fprintf(output,"\tldc %d\n",$1);
 				}
 			  | SUB_OP INT_CONST
 				{
 					int tmp = -$2;
 					$$ = createConstAttr( INTEGER_t, &tmp );
                     printf("const : %d\n",-$2);
-                    if(scope>0)     fprintf(output,"\t");
-                    fprintf(output,"sipush %d\n",-$2);
+                    if(scope>0)     //fprintf(output,"\t");
+                        fprintf(output,"\tldc %d\n",-$2);
 				}
 			  | FLOAT_CONST
 				{
 					float tmp = $1;
 					$$ = createConstAttr( FLOAT_t, &tmp );
                     printf("const : %f\n",$1);
-                    if(scope>0)     fprintf(output,"\t");
-                    fprintf(output,"ldc %f\n",$1);
+                    if(scope>0)     //fprintf(output,"\t");
+                        fprintf(output,"\tldc %f\n",$1);
 				}
 			  | SUB_OP FLOAT_CONST
 			    {
 					float tmp = -$2;
 					$$ = createConstAttr( FLOAT_t, &tmp );
                     printf("const : %f\n",-$2);
-                    if(scope>0)     fprintf(output,"\t");
-                    fprintf(output,"ldc %f\n",-$2);
+                    if(scope>0)     //fprintf(output,"\t");
+                        fprintf(output,"\tldc %f\n",-$2);
 				}
 			  | SCIENTIFIC
 				{
 					double tmp = $1;
 					$$ = createConstAttr( DOUBLE_t, &tmp );
                     printf("const : %f\n",$1);
-                    if(scope>0)     fprintf(output,"\t");
-                    fprintf(output,"ldc %f\n",$1);
+                    if(scope>0)     //fprintf(output,"\t");
+                        fprintf(output,"\tldc %f\n",$1);
 				}
 			  | SUB_OP SCIENTIFIC
 				{
 					double tmp = -$2;
 					$$ = createConstAttr( DOUBLE_t, &tmp );
                     printf("const : %f\n",-$2);
-                    if(scope>0)     fprintf(output,"\t");
-                    fprintf(output,"ldc %f\n",-$2);
+                    if(scope>0)     //fprintf(output,"\t");
+                        fprintf(output,"\tldc %f\n",-$2);
 				}
 			  | STR_CONST
 				{
 					$$ = createConstAttr( STRING_t, $1 );
                     printf("const : %s\n",$1);
-                    if(scope>0)     fprintf(output,"\t");
-                    fprintf(output,"ldc \"%s\"\n",$1);
+                    if(scope>0)     //fprintf(output,"\t");
+                        fprintf(output,"\tldc \"%s\"\n",$1);
 				}
 			  | TRUE
 				{
 					SEMTYPE tmp = __TRUE;
 					$$ = createConstAttr( BOOLEAN_t, &tmp );
                     printf("const : true\n");
-                    if(scope>0)     fprintf(output,"\t");
-                    fprintf(output,"iconst_1\n");
+                    if(scope>0)     //fprintf(output,"\t");
+                        fprintf(output,"\ticonst_1\n");
 				}
 			  | FALSE
 				{
 					SEMTYPE tmp = __FALSE;
 					$$ = createConstAttr( BOOLEAN_t, &tmp );
                     printf("const : false\n");
-                    if(scope>0)     fprintf(output,"\t");
-                    fprintf(output,"iconst_0\n");
+                    if(scope>0)     //fprintf(output,"\t");
+                        fprintf(output,"\ticonst_0\n");
 				}
 			  ;
 %%
