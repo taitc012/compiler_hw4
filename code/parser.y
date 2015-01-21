@@ -450,7 +450,8 @@ const_decl 	: CONST scalar_type const_list SEMICOLON
 			{
 				struct SymNode *newNode;				
 				struct constParam *ptr;
-				for( ptr=$3; ptr!=0; ptr=(ptr->next) ){
+                int n=0,i;
+				for( ptr=$3; ptr!=0; ptr=(ptr->next),++n ){
 					if( verifyRedeclaration( symbolTable, ptr->name, scope ) == __TRUE ){//no redeclare
 						if( ptr->value->category != $2->type ){//type different
 							if( !(($2->type==FLOAT_t || $2->type == DOUBLE_t ) && ptr->value->category==INTEGER_t) ) {
@@ -474,6 +475,12 @@ const_decl 	: CONST scalar_type const_list SEMICOLON
 						}
 					}
 				}
+                for(i=0;i<n;++i){
+                    if(scope>0)
+                        fprintf(output,"\tpop\n");
+                    else
+                        strcat(global_init_buf,"\tpop\n");
+                }
 			}
 			;
 
@@ -867,10 +874,10 @@ arithmetic_expression : arithmetic_expression add_op term
 			{
 				verifyArithmeticOp( $1, $2, $3 );
 				$$ = $1;
-                if($2==ADD_t)
+                /*if($2==ADD_t)
                     printf("+\n");
                 else
-                    printf("-\n");
+                    printf("-\n");*/
 			}
            | relation_expression { $$ = $1; }
 		   | term { $$ = $1; }
@@ -882,12 +889,12 @@ add_op	: ADD_OP { $$ = ADD_t; }
 		   
 term : term mul_op factor
 		{
-            if($2 == DIV_t)
+            /*if($2 == DIV_t)
                 printf("/\n");
             else if($2 == MUL_t)
                 printf("*\n");
             else
-                printf("%%\n");
+                printf("%%\n");*/
 			if( $2 == MOD_t ) {
 				verifyModOp( $1, $3 );
 			}
@@ -963,9 +970,25 @@ factor : variable_reference
 							fprintf(output,"\ticonst_0\n");
 						break;
 					 case STRING_t:
-					 	fprintf(output,"ldc \"%s\"",node->attribute->constVal->value.stringVal);
+					 	fprintf(output,"ldc \"%s\"\n",node->attribute->constVal->value.stringVal);
 						break;
 					}
+                    if(node->attribute->constVal->category!=node->type->type){
+                       // printf("%d\n",node->type->type);
+                       // printf("%d\n",node->attribute->constVal->category);
+                        if(node->type->type==DOUBLE_t){				
+                            //generate type coercion IR
+                            if(node->attribute->constVal->category==INTEGER_t)
+                                fprintf(output,"\ti2d\n");
+                            else if(node->attribute->constVal->category==FLOAT_t)
+                                fprintf(output,"\tf2d\n");
+                        }
+                        else if(node->type->type==FLOAT_t){
+                            //generate type coercion IR
+                            if(node->attribute->constVal->category==INTEGER_t)
+                                fprintf(output,"\ti2f\n");
+                        }
+                    }
                }
             }
 		}
@@ -1026,7 +1049,7 @@ factor : variable_reference
                                 fprintf(output,"\ticonst_0\n");
                             break;
                          case STRING_t:
-                            fprintf(output,"ldc \"%s\"",node->attribute->constVal->value.stringVal);
+                            fprintf(output,"ldc \"%s\"\n",node->attribute->constVal->value.stringVal);
                             break;
                         }
                    }
@@ -1108,7 +1131,6 @@ literal_const : INT_CONST
 				{
 					int tmp = $1;
 					$$ = createConstAttr( INTEGER_t, &tmp );
-                    printf("const : %d\n",$1);
                     if(scope > 0)
                         fprintf(output,"\tldc %d\n",$1);
                     else{
@@ -1120,7 +1142,6 @@ literal_const : INT_CONST
 				{
 					int tmp = -$2;
 					$$ = createConstAttr( INTEGER_t, &tmp );
-                    printf("const : %d\n",-$2);
                     if(scope > 0)
                         fprintf(output,"\tldc %d\n",-$2);
                     else{
@@ -1132,7 +1153,6 @@ literal_const : INT_CONST
 				{
 					float tmp = $1;
 					$$ = createConstAttr( FLOAT_t, &tmp );
-                    printf("const : %f\n",$1);
                     if(scope > 0)
                         fprintf(output,"\tldc %f\n",$1);
                     else{
@@ -1144,7 +1164,6 @@ literal_const : INT_CONST
 			    {
 					float tmp = -$2;
 					$$ = createConstAttr( FLOAT_t, &tmp );
-                    printf("const : %f\n",-$2);
                     if(scope > 0)
                         fprintf(output,"\tldc %f\n",-$2);
                     else{
@@ -1156,7 +1175,6 @@ literal_const : INT_CONST
 				{
 					double tmp = $1;
 					$$ = createConstAttr( DOUBLE_t, &tmp );
-                    printf("const : %f\n",$1);
                     if(scope > 0)
                         fprintf(output,"\tldc %f\n",$1);
                     else{
@@ -1168,7 +1186,6 @@ literal_const : INT_CONST
 				{
 					double tmp = -$2;
 					$$ = createConstAttr( DOUBLE_t, &tmp );
-                    printf("const : %f\n",-$2);
                     if(scope > 0)
                         fprintf(output,"\tldc %f\n",-$2);
                     else{
@@ -1179,7 +1196,6 @@ literal_const : INT_CONST
 			  | STR_CONST
 				{
 					$$ = createConstAttr( STRING_t, $1 );
-                    printf("const : %s\n",$1);
                     if(scope > 0)
                         fprintf(output,"\tldc \"%s\"\n",$1);
                     else{
@@ -1191,7 +1207,6 @@ literal_const : INT_CONST
 				{
 					SEMTYPE tmp = __TRUE;
 					$$ = createConstAttr( BOOLEAN_t, &tmp );
-                    printf("const : true\n");
                     if(scope > 0)
                         fprintf(output,"\ticonst_1\n");
                     else{
@@ -1203,7 +1218,6 @@ literal_const : INT_CONST
 				{
 					SEMTYPE tmp = __FALSE;
 					$$ = createConstAttr( BOOLEAN_t, &tmp );
-                    printf("const : false\n");
                     if(scope > 0)
                         fprintf(output,"\ticonst_0\n");
                     else{

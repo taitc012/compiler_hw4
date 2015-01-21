@@ -38,10 +38,10 @@ int  main( int argc, char **argv )
         }
         pch2 = strtok(pch,".");
         strcpy(filename,pch2);
-        printf("%s\n",filename);
+       // printf("%s\n",filename);
 
         strcat(pch2,".j");
-        printf("%s\n",pch2);
+       // printf("%s\n",pch2);
         output = fopen(pch2,"w"); 
 
         //initial .j file
