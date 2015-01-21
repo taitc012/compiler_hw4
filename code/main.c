@@ -53,6 +53,8 @@ int  main( int argc, char **argv )
         next_num = 1;
         //initial ismain
         is_main = 0;
+        //initial lable
+        lable = 1;
 	}
 	else
 	{

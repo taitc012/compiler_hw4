@@ -8,6 +8,7 @@ FILE *output;
 char filename[256];
 int next_num;
 int is_main;
+int lable;
 
 
 ////////////////////////////

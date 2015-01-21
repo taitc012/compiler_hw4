@@ -8,6 +8,49 @@
 extern int linenum;
 extern __BOOLEAN semError; 
 
+void handle_relation( OPERATOR op );
+void handle_int_relational( OPERATOR op ){
+    fprintf(output,"\tisub\n"); 
+    handle_relation(op);
+}
+void handle_float_relational( OPERATOR op ){
+    fprintf(output,"\tfcmpg\n"); 
+    handle_relation(op);
+}
+void handle_double_relational( OPERATOR op ){
+    fprintf(output,"\tdcmpg\n"); 
+    handle_relation(op);
+}
+void handle_relation( OPERATOR op ){
+    switch (op){
+        case LT_t: 
+            fprintf(output,"\tiflt L%d_true\n",lable);
+            break;
+        case LE_t: 
+            fprintf(output,"\tifle L%d_true\n",lable);
+            break;
+        case EQ_t: 
+            fprintf(output,"\tifeq L%d_true\n",lable);
+            break;
+        case GE_t: 
+            fprintf(output,"\tifge L%d_true\n",lable);
+            break;
+        case GT_t: 
+            fprintf(output,"\tifgt L%d_true\n",lable);
+            break;
+        case NE_t:
+            fprintf(output,"\tifne L%d_true\n",lable);
+    }
+    fprintf(output,"\ticonst_0  ; false = 0\n");
+    fprintf(output,"\tgoto L%d_end\n",lable);
+    fprintf(output,"L%d_true:\n",lable);
+    fprintf(output,"\ticonst_1  ; true = 1\n");
+    fprintf(output,"L%d_end:\n",lable);
+
+    ++lable;
+}
+
+
 void handle_int_arithmetic( OPERATOR op ){
     switch( op ) {
          case ADD_t:
@@ -507,6 +550,9 @@ void verifyUnaryNOT( struct expr_sem *expr )
 	}
 	else {	// pass verification, result is boolean
 		expr->pType->type = BOOLEAN_t;
+        //generate uniary not IR using ixor
+        fprintf(output,"\ticonst 1\n");
+        fprintf(output,"\tixor\n");
 	}
 }
 
@@ -699,13 +745,12 @@ void verifyArithmeticOp( struct expr_sem *op1, OPERATOR operator, struct expr_se
 		else if( ((op1->pType->type==INTEGER_t || op1->pType->type==FLOAT_t || op1->pType->type==DOUBLE_t) && \
 			(op2->pType->type==INTEGER_t || op2->pType->type==FLOAT_t || op2->pType->type==DOUBLE_t)) ) {	// need to consider type coercion
 			if( op1->pType->type==INTEGER_t && op2->pType->type==INTEGER_t ) {
-				op1->pType->type = INTEGER_t;
                 //generate integer arithmetic IR
                 handle_int_arithmetic(operator);
+				op1->pType->type = INTEGER_t;
 			}
 			else {
 				if(op1->pType->type==DOUBLE_t || op2->pType->type==DOUBLE_t){				
-					op1->pType->type = DOUBLE_t;
                     //generate type coercion IR
                     if(op1->pType->type!=DOUBLE_t){
                         fprintf(output,"\tdup2_x2\n");
@@ -723,9 +768,9 @@ void verifyArithmeticOp( struct expr_sem *op1, OPERATOR operator, struct expr_se
                             fprintf(output,"\tf2d\n");
                     }
                     handle_double_arithmetic(operator);
+					op1->pType->type = DOUBLE_t;
 				}
 				else{
-					op1->pType->type = FLOAT_t;
                     //generate type coercion IR
                     if(op1->pType->type!=FLOAT_t){
                         fprintf(output,"\tswap\n");
@@ -737,6 +782,7 @@ void verifyArithmeticOp( struct expr_sem *op1, OPERATOR operator, struct expr_se
                             fprintf(output,"\ti2f\n");
                     }
                     handle_float_arithmetic(operator);
+					op1->pType->type = FLOAT_t;
                 }
 			}
 		}
@@ -778,6 +824,51 @@ void verifyRelOp( struct expr_sem *op1, OPERATOR operator, struct expr_sem *op2 
 		}
 	}
 	else {	// pass verification, result is boolean!
+        
+        //generate relational operator IR
+		if( op1->pType->type==BOOLEAN_t && op2->pType->type==BOOLEAN_t && ( operator==EQ_t || operator==NE_t )){
+                handle_int_relational(operator);
+        }
+        else{
+			if( op1->pType->type==INTEGER_t && op2->pType->type==INTEGER_t ) {
+                //generate integer arithmetic IR
+                handle_int_relational(operator);
+			}
+			else {
+				if(op1->pType->type==DOUBLE_t || op2->pType->type==DOUBLE_t){				
+                    //generate type coercion IR
+                    if(op1->pType->type!=DOUBLE_t){
+                        fprintf(output,"\tdup2_x2\n");
+                        fprintf(output,"\tpop2\n");
+                        if(op1->pType->type==INTEGER_t)
+                            fprintf(output,"\ti2d\n");
+                        else
+                            fprintf(output,"\tf2d\n");
+                        fprintf(output,"\tdup2_x2\n");
+                        fprintf(output,"\tpop2\n");
+                    }else{
+                        if(op2->pType->type==INTEGER_t)
+                            fprintf(output,"\ti2d\n");
+                        else
+                            fprintf(output,"\tf2d\n");
+                    }
+                    handle_double_relational(operator);
+				}
+				else{
+                    //generate type coercion IR
+                    if(op1->pType->type!=FLOAT_t){
+                        fprintf(output,"\tswap\n");
+                        if(op1->pType->type==INTEGER_t)
+                            fprintf(output,"\ti2f\n");
+                        fprintf(output,"\tswap\n");
+                    }else{
+                        if(op2->pType->type==INTEGER_t)
+                            fprintf(output,"\ti2f\n");
+                    }
+                    handle_float_relational(operator);
+                }
+			}
+        }
 		op1->pType->type = BOOLEAN_t;
 	}
 }
@@ -809,6 +900,11 @@ void verifyAndOrOp( struct expr_sem *op1, OPERATOR operator, struct expr_sem *op
 	}
 	else {	// pass verification, result is boolean!
 		op1->pType->type = BOOLEAN_t;
+        //generate and/or IR
+        if(operator==AND_t)
+            fprintf(output,"\tiand\n");
+        else
+            fprintf(output,"\tior\n");
 	}
 }
 
